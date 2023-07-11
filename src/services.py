@@ -5,10 +5,11 @@ from . import common
 
 
 class GoogleMaps:
-    def __init__(self, D):
+    def __init__(self, D, api_key):
         self.D = D
+        self.api_key = api_key
 
-    def geocode(self, address, delay=5, max_retries=1, language=None, api_key=None):
+    def geocode(self, address, delay=5, max_retries=1, language=None):
         """Geocode address using Google's API and return dictionary of useful fields
 
         address:
@@ -23,18 +24,11 @@ class GoogleMaps:
         try:
             address = address.encode('utf-8')
         except UnicodeDecodeError:
-            common.logger.debug('Geocode failed to parse address and needed to cast to ascii: ' + address)
+            print('Geocode failed to parse address and needed to cast to ascii: ' + address)
             address = common.to_ascii(address)
-        address = re.sub('%C2%9\d', '', urllib.parse.quote_plus(address))
-        geocode_url = 'http://maps.google.com/maps/api/geocode/json?address=%s&sensor=false%s' % (address, '&language=' + language if language else '')
-        try:
-            # legacy data without api key
-            geocode_response = self.D.cache[geocode_url]
-            if geocode_response.status_code != 200:
-                raise KeyError()
-        except KeyError:
-            geocode_url = 'https://maps.google.com/maps/api/geocode/json?address=%s&key=%s&sensor=false%s' % (address, api_key or '', '&language=' + language if language else '')
-            geocode_response = self.D.get(geocode_url, delay=delay, max_retries=max_retries)
+        address = re.sub(u'%C2%9\d*', '', urllib.parse.quote_plus(address))
+        geocode_url = 'https://maps.google.com/maps/api/geocode/json?address=%s&key=%s&sensor=false%s' % (address, self.api_key, '&language=' + language if language else '')
+        geocode_response = self.D.get(geocode_url, delay=delay, max_retries=max_retries)
         geocode_data = self.load_result(geocode_url, geocode_response.text)
         for result in geocode_data.get('results', []):
             return self.parse_location(result)
