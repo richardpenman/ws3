@@ -1,8 +1,8 @@
 
-import random, time
+import random, re, time
 from datetime import datetime, timedelta
 import requests
-from . import pdict, settings
+from . import pdict, services, settings, xpath
 
 
 SUCCESS_STATUS = (200, )
@@ -14,9 +14,22 @@ class Response:
         self.text = text
         self.status_code = status_code
         self.reason = reason
+        self.tree = None
 
+    def get(self, path):
+        if self.tree is None:
+            self.tree = xpath.Tree(self.text)
+        return self.tree.get(path)
 
+    def search(self, path):
+        if self.tree is None:
+            self.tree = xpath.Tree(self.text)
+        return self.tree.search(path)
 
+    def regex(self, r):
+        return re.search(r, self.text)
+
+        
 class Download:
     def __init__(self, cache_file='', session=None, delay=0, max_retries=1):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file)
@@ -52,9 +65,12 @@ class Download:
         self.last_time = next_time
             
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', headers=None):
+    def get(self, url, delay=None, max_retries=None, user_agent='', headers=None, data=None, ssl=True):
+        if isinstance(data, dict):
+            data = urllib.urlencode(sorted(data.items()))
+        key = self.get_key(url, data)
         try:
-            response = self.cache[url]
+            response = self.cache[key]
             if not isinstance(response, Response):
                 response = Response(response, 200, '')
             if self._should_retry(response):
@@ -67,14 +83,28 @@ class Download:
                 session = self.session
             headers = self._format_headers(url, headers, user_agent)
             max_retries = self.max_retries if max_retries is None else max_retries
-            for num_failures in range(max_retries or self.max_retries):
+            for num_failures in range(max_retries):
                 self._throttle(delay)
-                request_response = session.get(url, headers=headers)
+                if data:
+                    request_response = session.post(url, headers=headers, data=data, verify=ssl)
+                else:
+                    request_response = session.get(url, headers=headers, verify=ssl)
                 print('Download:', url, request_response.status_code)
                 response = Response(request_response.text, request_response.status_code, request_response.reason)
                 if not self._should_retry(response, num_failures):
                     break
-            self.cache[url] = response
+            self.cache[key] = response
         return response
 
+    
+    def get_key(self, url, data=None):
+        """Create key for caching this request
+        """
+        key = url
+        if data:
+            key += ' ' + data
+        return key
 
+    def geocode(self, address, api_key):
+        gm = services.GoogleMaps(self, api_key)
+        return gm.geocode(address)

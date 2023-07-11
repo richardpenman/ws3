@@ -31,7 +31,7 @@ class Tree:
         else:
             return Tree(None)
 
-    def tostring(self):
+    def __str__(self):
         if self.doc is None:
             return ''
         else:
@@ -46,12 +46,12 @@ class Tree:
 def get(html, xpath, remove=None):
     """Return first element from XPath search of HTML
     """
-    return Tree(html, remove=remove).get(xpath).tostring()
+    return str(Tree(html, remove=remove).get(xpath))
 
 def search(html, xpath, remove=None):
     """Return all elements from XPath search of HTML
     """
-    return [e.tostring() for e in Tree(html, remove=remove).search(xpath)]
+    return [str(e) for e in Tree(html, remove=remove).search(xpath)]
 
 
 class Form:
