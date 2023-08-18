@@ -1,5 +1,5 @@
 
-import random, re, time
+import json, random, re, time
 from datetime import datetime, timedelta
 import requests
 from . import pdict, services, settings, xpath
@@ -29,12 +29,15 @@ class Response:
     def regex(self, r):
         return re.search(r, self.text)
 
+    def json(self):
+        return json.loads(self.text)
+
         
 class Download:
     def __init__(self, cache_file='', session=None, delay=0, max_retries=1):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file)
         self.session = session
-        self.delay = 0
+        self.delay = delay
         self.max_retries = max_retries
         self.last_time = datetime.now()
 
@@ -43,8 +46,6 @@ class Download:
         if user_agent:
             headers['User-Agent'] = user_agent
         for name, value in settings.default_headers.items():
-            #if name == 'Referer':
-            #    value = url
             headers[name] = value
         return headers
 
