@@ -37,7 +37,7 @@ class Tree:
         else:
             try:
                 parts = [self.doc.text] + [c if isinstance(c, str) else lxml.etree.tostring(c).decode() for c in self.doc] + [self.doc.tail]
-                return ''.join(filter(None, parts)) or str(node)
+                return ''.join(filter(None, parts)) #or str(self.doc)
             except AttributeError as e:
                 print('error parsing node:', e)
                 return ''
