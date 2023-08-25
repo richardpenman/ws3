@@ -66,11 +66,13 @@ class Download:
         self.last_time = next_time
             
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', headers=None, data=None, ssl=True):
+    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, headers=None, data=None, ssl=True):
         if isinstance(data, dict):
             data = urllib.urlencode(sorted(data.items()))
         key = self.get_key(url, data)
         try:
+            if not read_cache:
+                raise KeyError()
             response = self.cache[key]
             if not isinstance(response, Response):
                 response = Response(response, 200, '')
