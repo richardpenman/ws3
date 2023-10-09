@@ -66,7 +66,7 @@ class Download:
         self.last_time = next_time
             
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, headers=None, data=None, ssl=True):
+    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, headers=None, data=None, ssl=True, raw=False):
         if isinstance(data, dict):
             data = urllib.urlencode(sorted(data.items()))
         key = self.get_key(url, data)
@@ -93,7 +93,8 @@ class Download:
                 else:
                     request_response = session.get(url, headers=headers, verify=ssl)
                 print('Download:', url, request_response.status_code)
-                response = Response(request_response.text, request_response.status_code, request_response.reason)
+                content = request_response.content if raw else request_response.text
+                response = Response(content, request_response.status_code, request_response.reason)
                 if not self._should_retry(response, num_failures):
                     break
             self.cache[key] = response
@@ -105,7 +106,7 @@ class Download:
         """
         key = url
         if data:
-            key += ' ' + data
+            key = '{} {}'.format(key, data)
         return key
 
     def geocode(self, address, api_key):
