@@ -34,12 +34,13 @@ class Response:
 
         
 class Download:
-    def __init__(self, cache_file='', session=None, delay=0, max_retries=1):
+    def __init__(self, cache_file='', session=None, delay=0, max_retries=1, proxy_file=None):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file)
         self.session = session
         self.delay = delay
         self.max_retries = max_retries
-        self.last_time = datetime.now()
+        self.last_time = {}
+        self.proxies = open(proxy_file).read().splitlines() if proxy_file else None
 
     def _format_headers(self, url, headers, user_agent):
         headers = headers or {}
@@ -57,13 +58,14 @@ class Download:
             return num_failures < self.max_retries
 
 
-    def _throttle(self, delay):
+    def _throttle(self, delay, ip):
         delay = self.delay if delay is None else delay
         seconds = delay * (0.5 + random.random())
-        next_time = datetime.now() + timedelta(seconds=seconds)
-        if next_time > self.last_time:
-            time.sleep(seconds)
-        self.last_time = next_time
+        last_time = self.last_time.get(ip, datetime.now() - timedelta(seconds=seconds))
+        next_time = last_time + timedelta(seconds=seconds)
+        while next_time < datetime.now():
+            time.sleep(0.1)
+        self.last_time[ip] = next_time
             
 
     def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, headers=None, data=None, ssl=True, raw=False):
@@ -87,11 +89,12 @@ class Download:
             headers = self._format_headers(url, headers, user_agent)
             max_retries = self.max_retries if max_retries is None else max_retries
             for num_failures in range(max_retries):
-                self._throttle(delay)
+                proxies = self.get_proxy()
+                self._throttle(delay, proxies['http'] if proxies else None)
                 if data:
-                    request_response = session.post(url, headers=headers, data=data, verify=ssl)
+                    request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies)
                 else:
-                    request_response = session.get(url, headers=headers, verify=ssl)
+                    request_response = session.get(url, headers=headers, verify=ssl, proxies=_proxies)
                 print('Download:', url, request_response.status_code)
                 content = request_response.content if raw else request_response.text
                 response = Response(content, request_response.status_code, request_response.reason)
@@ -100,7 +103,16 @@ class Download:
             self.cache[key] = response
         return response
 
-    
+
+    def get_proxy(self):
+        if self.proxies:
+            proxy = random.choice(self.proxies)
+            return {
+                'http': proxy,
+                'https': proxy,
+            }
+
+
     def get_key(self, url, data=None):
         """Create key for caching this request
         """
