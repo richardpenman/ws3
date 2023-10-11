@@ -1,5 +1,5 @@
 
-import json, random, re, time
+import json, random, re, time, os
 from datetime import datetime, timedelta
 import requests
 from . import pdict, services, settings, xpath
@@ -40,7 +40,7 @@ class Download:
         self.delay = delay
         self.max_retries = max_retries
         self.last_time = {}
-        self.proxies = open(proxy_file).read().splitlines() if proxy_file else None
+        self.proxies = open(proxy_file).read().splitlines() if proxy_file and os.path.exists(proxy_file) else None
 
     def _format_headers(self, url, headers, user_agent):
         headers = headers or {}
@@ -63,7 +63,7 @@ class Download:
         seconds = delay * (0.5 + random.random())
         last_time = self.last_time.get(ip, datetime.now() - timedelta(seconds=seconds))
         next_time = last_time + timedelta(seconds=seconds)
-        while next_time < datetime.now():
+        while next_time > datetime.now():
             time.sleep(0.1)
         self.last_time[ip] = next_time
             
@@ -94,7 +94,7 @@ class Download:
                 if data:
                     request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies)
                 else:
-                    request_response = session.get(url, headers=headers, verify=ssl, proxies=_proxies)
+                    request_response = session.get(url, headers=headers, verify=ssl, proxies=proxies)
                 print('Download:', url, request_response.status_code)
                 content = request_response.content if raw else request_response.text
                 response = Response(content, request_response.status_code, request_response.reason)
