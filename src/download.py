@@ -29,13 +29,16 @@ class Response:
     def regex(self, r):
         return re.search(r, self.text)
 
+    def findall(self, r):
+        return re.findall(r, self.text)
+
     def json(self):
         return json.loads(self.text)
 
         
 class Download:
-    def __init__(self, cache_file='', session=None, delay=0, max_retries=1, proxy_file=None):
-        self.cache = pdict.PersistentDict(cache_file or settings.cache_file)
+    def __init__(self, cache_file='', session=None, delay=0, max_retries=1, proxy_file=None, cache_expires=None):
+        self.cache = pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
         self.session = session
         self.delay = delay
         self.max_retries = max_retries
@@ -91,15 +94,20 @@ class Download:
             for num_failures in range(max_retries):
                 proxies = self.get_proxy()
                 self._throttle(delay, proxies['http'] if proxies else None)
-                if data:
-                    request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies)
+                try:
+                    if data:
+                        request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies)
+                    else:
+                        request_response = session.get(url, headers=headers, verify=ssl, proxies=proxies)
+                except Exception as e:
+                    print('Download error:', e)
+                    response = Response('', 500, str(e))
                 else:
-                    request_response = session.get(url, headers=headers, verify=ssl, proxies=proxies)
-                print('Download:', url, request_response.status_code)
-                content = request_response.content if raw else request_response.text
-                response = Response(content, request_response.status_code, request_response.reason)
-                if not self._should_retry(response, num_failures):
-                    break
+                    print('Download:', url, request_response.status_code)
+                    content = request_response.content if raw else request_response.text
+                    response = Response(content, request_response.status_code, request_response.reason)
+                    if not self._should_retry(response, num_failures):
+                        break
             self.cache[key] = response
         return response
 
