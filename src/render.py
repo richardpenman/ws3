@@ -2,7 +2,7 @@
 
 import os, re, signal, sys, time, urllib, zipfile
 from http.cookiejar import Cookie, CookieJar
-from . import download
+from . import download, xpath
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -146,10 +146,10 @@ class CacheBrowser:
 
     def wait(self, xpath):
         self.browser.implicitly_wait(20)
-        self.browser.find_element(By.XPATH, xpath)
+        return self.browser.find_element(By.XPATH, xpath)
 
 
-    def get(self, url, force=False, retry=True, delay=5, xpath=None):
+    def get(self, url, force=False, retry=True, delay=5, wait_xpath=None):
         try:
             if force:
                 raise KeyError()
@@ -161,10 +161,13 @@ class CacheBrowser:
             print('Downloading:', url)
             self.browser.get(url)
             time.sleep(delay)
-            if xpath:
-                self.wait(xpath)
+            if wait_xpath:
+                self.wait(wait_xpath)
             self.load_cookies(url)
             html = self.browser.page_source
+            # chrome will wrap JSON in pre - how to solve this properly?
+            if html.endswith('</pre></body></html>'):
+                html = xpath.get(html, '/html/body/pre')
             self.cache[url] = html
             self.save_cookies()
         return download.Response(html, 200, '')
