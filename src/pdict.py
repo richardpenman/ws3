@@ -188,14 +188,14 @@ class PersistentDict:
         return self.expires is None or datetime.datetime.now() - t < self.expires
 
 
-    def get(self, key, default=None):
+    def get(self, key, default=None, ignore_expires=False):
         """Get data at key and return default if not defined
         """
         data = default
         if key:
             row = self.conn.execute("SELECT value, meta, updated FROM config WHERE key=?;", (key,)).fetchone()
             if row:
-                if self.is_fresh(row[2]):
+                if ignore_expires or self.is_fresh(row[2]):
                     value = row[0] 
                     data = dict(
                         value=self.deserialize(value),
