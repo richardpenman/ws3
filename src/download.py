@@ -71,7 +71,7 @@ class Download:
         self.last_time[ip] = next_time
             
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, headers=None, data=None, ssl=True, raw=False):
+    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl=True):
         if isinstance(data, dict):
             data = urllib.urlencode(sorted(data.items()))
         key = self.get_key(url, data)
@@ -91,7 +91,7 @@ class Download:
                 session = self.session
             headers = self._format_headers(url, headers, user_agent)
             max_retries = self.max_retries if max_retries is None else max_retries
-            for num_failures in range(max_retries):
+            for num_failures in range(max_retries + 1):
                 proxies = self.get_proxy()
                 self._throttle(delay, proxies['http'] if proxies else None)
                 try:
@@ -104,11 +104,12 @@ class Download:
                     response = Response('', 500, str(e))
                 else:
                     print('Download:', url, request_response.status_code)
-                    content = request_response.content if raw else request_response.text
+                    content = request_response.content if not request_response.encoding else request_response.text
                     response = Response(content, request_response.status_code, request_response.reason)
                     if not self._should_retry(response, num_failures):
                         break
-            self.cache[key] = response
+            if write_cache:
+                self.cache[key] = response
         return response
 
 
