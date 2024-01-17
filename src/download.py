@@ -35,9 +35,11 @@ class Response:
     def json(self):
         return json.loads(self.text)
 
+    def __str__(self):
+        return '{}: {}'.format(self.status_code, self.text[:100] if self.text else '')
         
 class Download:
-    def __init__(self, cache_file='', session=None, delay=0, max_retries=1, proxy_file=None, cache_expires=None):
+    def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, cache_expires=None):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
         self.session = session
         self.delay = delay
@@ -93,7 +95,6 @@ class Download:
             max_retries = self.max_retries if max_retries is None else max_retries
             for num_failures in range(max_retries + 1):
                 proxies = self.get_proxy()
-                self._throttle(delay, proxies['http'] if proxies else None)
                 try:
                     if data:
                         request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies)
@@ -108,6 +109,8 @@ class Download:
                     response = Response(content, request_response.status_code, request_response.reason)
                     if not self._should_retry(response, num_failures):
                         break
+                finally:
+                    self._throttle(delay, proxies['http'] if proxies else None)
             if write_cache:
                 self.cache[key] = response
         return response
