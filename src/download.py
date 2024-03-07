@@ -1,5 +1,5 @@
 
-import json, random, re, time, os
+import json, random, re, time, os, urllib.parse
 from datetime import datetime, timedelta
 import requests
 from . import pdict, services, settings, xpath
@@ -39,10 +39,11 @@ class Response:
         return '{}: {}'.format(self.status_code, self.text[:100] if self.text else '')
         
 class Download:
-    def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, cache_expires=None):
+    def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, cache_expires=None, timeout=30):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
         self.session = session
         self.delay = delay
+        self.timeout = timeout
         self.max_retries = max_retries
         self.last_time = {}
         self.proxies = open(proxy_file).read().splitlines() if proxy_file and os.path.exists(proxy_file) else None
@@ -75,7 +76,7 @@ class Download:
 
     def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl=True):
         if isinstance(data, dict):
-            data = urllib.urlencode(sorted(data.items()))
+            data = urllib.parse.urlencode(sorted(data.items()))
         key = self.get_key(url, data)
         try:
             if not read_cache:
@@ -97,9 +98,9 @@ class Download:
                 proxies = self.get_proxy()
                 try:
                     if data:
-                        request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies)
+                        request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies, timeout=self.timeout)
                     else:
-                        request_response = session.get(url, headers=headers, verify=ssl, proxies=proxies)
+                        request_response = session.get(url, headers=headers, verify=ssl, proxies=proxies, timeout=self.timeout)
                 except Exception as e:
                     print('Download error:', e)
                     response = Response('', 500, str(e))
