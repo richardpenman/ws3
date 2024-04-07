@@ -422,25 +422,16 @@ class UnicodeWriter:
     >>> fp.read().strip()
     'a,1'
     """
-    def __init__(self, file, encoding=settings.default_encoding, mode='w', unique=False, unique_by=None, quoting=csv.QUOTE_ALL, **argv):
+    def __init__(self, file, encoding=settings.default_encoding, mode='w', unique=False, quoting=csv.QUOTE_ALL, **argv):
         self.encoding = encoding
         self.unique = unique
-        self.unique_by = unique_by
+        self.seen = set()
         if hasattr(file, 'write'):
             self.fp = file
         else:
             self.fp = open(file, mode)
-        if self.unique:
-            self.rows = adt.HashDict() # cache the rows that have already been written
-            for row in csv.reader(open(self.fp.name)):
-                self.rows[self._unique_key(row)] = True
         self.writer = csv.writer(self.fp, quoting=quoting, **argv)
         
-    def _unique_key(self, row):
-        """Generate the unique key
-        """
-        return '_'.join([str(row[i]) for i in self.unique_by]) if self.unique_by else str(row)
-
     def _cell(self, s):
         """Normalize the content for this cell
         """
@@ -456,10 +447,12 @@ class UnicodeWriter:
         """Write row to output
         """
         #row = [self._cell(col) for col in row]
+        row = tuple(row)
         if self.unique:
-            if self._unique_key(row) not in self.rows:
+            key = hash(row)
+            if key not in self.seen:
+                self.seen.add(key)
                 self.writer.writerow(row)
-                self.rows[self._unique_key(row)] = True
         else:
             self.writer.writerow(row)
             
