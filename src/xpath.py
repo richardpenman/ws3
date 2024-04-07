@@ -2,6 +2,7 @@ import itertools, re, sys, urllib, urllib.parse
 from optparse import OptionParser
 from . import common
 import lxml.html
+import lxml.etree
 
 
 class Tree:
@@ -13,7 +14,11 @@ class Tree:
             self.doc = doc
         else:
             try:
-                self.doc = lxml.html.fromstring(doc)
+                try:
+                    self.doc = lxml.html.fromstring(doc)
+                except ValueError:
+                    # For error: Unicode strings with encoding declaration are not supported. Please use bytes input or XML fragments without declaration
+                    self.doc = lxml.html.fromstring(doc.encode('utf-8'))
             except lxml.etree.LxmlError as e:
                 print('Error parsing doc:', e)
                 self.doc = None
@@ -39,7 +44,7 @@ class Tree:
                 parts = [self.doc.text] + [c if isinstance(c, str) else lxml.etree.tostring(c).decode() for c in self.doc] + [self.doc.tail]
                 return ''.join(filter(None, parts)) #or str(self.doc)
             except AttributeError as e:
-                print('error parsing node:', e)
+                print('Error parsing node:', e)
                 return ''
 
 
