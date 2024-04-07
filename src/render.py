@@ -3,12 +3,11 @@
 import os, re, signal, sys, time, urllib, zipfile
 from http.cookiejar import Cookie, CookieJar
 from . import download, xpath
-from selenium import webdriver
+from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By 
 from selenium.webdriver.common.proxy import Proxy, ProxyType
-
 
 class CacheBrowser:
     def __init__(self, executable_path='~/bin/chromedriver', headless=True, cache=None, cookie_jar=None, cookie_key=None, proxy=None, init_callback=None):
@@ -36,7 +35,7 @@ class CacheBrowser:
 
     def init(self):
         if self.browser is None:
-            self.browser = webdriver.Chrome(service=self.chrome_service, options=self.chrome_options)#, desired_capabilities=self.capabilities)
+            self.browser = Chrome(service=self.chrome_service, options=self.chrome_options)#, desired_capabilities=self.capabilities)
             if self.init_callback is not None:
                 self.init_callback()
 
