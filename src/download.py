@@ -37,7 +37,8 @@ class Response:
 
     def __str__(self):
         return '{}: {}'.format(self.status_code, self.text[:100] if self.text else '')
-        
+
+
 class Download:
     def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, cache_expires=None, timeout=30):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
@@ -47,6 +48,7 @@ class Download:
         self.max_retries = max_retries
         self.last_time = {}
         self.proxies = open(proxy_file).read().splitlines() if proxy_file and os.path.exists(proxy_file) else None
+
 
     def _format_headers(self, url, headers, user_agent):
         headers = headers or {}
@@ -119,7 +121,8 @@ class Download:
 
     def get_proxy(self):
         if self.proxies:
-            proxy = random.choice(self.proxies)
+            proxy = self.proxies.pop()
+            self.proxies = [proxy] + self.proxies
             return {
                 'http': proxy,
                 'https': proxy,
