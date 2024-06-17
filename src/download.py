@@ -1,12 +1,32 @@
 
 import json, random, re, time, os, urllib.parse
+import concurrent
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from dataclasses import dataclass
+from typing import Callable
 import requests
 from . import pdict, services, settings, xpath
 
 
 SUCCESS_STATUS = (200, )
 NON_RETRIABLE_STATUS = (404, )
+
+
+@dataclass
+class Request:
+    url: str
+    headers: dict = None
+    data: str = None
+    callback: Callable = None
+
+    def get_key(self):
+        """Create key for caching this request
+        """
+        key = self.url
+        if self.data:
+            key = '{} {}'.format(key, self.data)
+        return key
 
 
 class Response:
@@ -40,14 +60,14 @@ class Response:
 
 
 class Download:
-    def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, cache_expires=None, timeout=30):
+    def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, proxies=None, cache_expires=None, timeout=30):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
         self.session = session
         self.delay = delay
         self.timeout = timeout
         self.max_retries = max_retries
         self.last_time = {}
-        self.proxies = open(proxy_file).read().splitlines() if proxy_file and os.path.exists(proxy_file) else None
+        self.proxies = open(proxy_file).read().splitlines() if proxy_file and os.path.exists(proxy_file) else proxies
 
 
     def _format_headers(self, url, headers, user_agent):
@@ -79,7 +99,7 @@ class Download:
     def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl=True):
         if isinstance(data, dict):
             data = urllib.parse.urlencode(sorted(data.items()))
-        key = self.get_key(url, data)
+        key = Request(url, data=data).get_key()
         try:
             if not read_cache:
                 raise KeyError()
@@ -129,14 +149,50 @@ class Download:
             }
 
 
-    def get_key(self, url, data=None):
-        """Create key for caching this request
-        """
-        key = url
-        if data:
-            key = '{} {}'.format(key, data)
-        return key
-
     def geocode(self, address, api_key):
         gm = services.GoogleMaps(self, api_key)
         return gm.geocode(address)
+
+
+    def threaded(self, requests, max_workers=4, max_queue=1000):
+        def process_callback(request, response):
+            if request.callback:
+                for next_request in request.callback(request, response) or []:
+                    print('next', next_request)
+                    requests.append(next_request)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            while requests:
+                # avoid loading too many requests into memory at once
+                cur_requests = []
+                for _ in range(max_queue):
+                    if requests:
+                        cur_requests.append(requests.pop())
+                    else:
+                        break
+
+                future_to_request = {}
+                for request in cur_requests:
+                    try:
+                        response = self.cache[request.get_key()]
+                        if self._should_retry(response):
+                            raise KeyError()
+                    except KeyError:
+                        future = executor.submit(self.get, url=request.url, headers=request.headers, data=request.data, read_cache=False, write_cache=False)
+                        future_to_request[future] = request
+                    else:
+                        process_callback(request, response)
+
+                # process the completed callbacks
+                for future in concurrent.futures.as_completed(future_to_request):
+                    request = future_to_request[future]
+                    try:
+                        response = future.result()
+                    except Exception as e:
+                        print('{} generated an exception: {}'.format(request.url, e))
+                    else:
+                        self.cache[request.get_key()] = response
+                        process_callback(request, response)
+                    del future_to_request[future]
+
+
