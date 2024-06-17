@@ -13,8 +13,11 @@ class CacheBrowser:
     def __init__(self, executable_path='~/bin/chromedriver', headless=True, cache=None, cookie_jar=None, cookie_key=None, proxy=None, init_callback=None):
         self.chrome_service = Service(executable_path=os.path.expanduser(executable_path))
         self.chrome_options = Options()
+        self.chrome_options.add_argument("--disable-dev-shm-usage") # https://stackoverflow.com/a/50725918/1689770
+        self.chrome_options.add_argument("--disable-gpu") #https://stackoverflow.com/questions/51959986/how-to-solve-selenium-chromedriver-timed-out-receiving-message-from-renderer-exc
         if headless:
             self.chrome_options.add_argument('--headless')
+
         if proxy:
             self.set_proxy(proxy)
         self.init_callback = init_callback
@@ -81,9 +84,18 @@ class CacheBrowser:
             print('saving:', self.browser.get_cookies())
             self.cache[self.cookie_key] = self.browser.get_cookies()
 
-    def set_proxy(self, http_proxy):
+    def parse_proxy(self, http_proxy):
         match = re.search('//(.*?):(.*?)@(.*?):(\d+)', http_proxy)
-        proxy_user, proxy_pass, proxy_host, proxy_port = match.groups()
+        if match:
+            proxy_user, proxy_pass, proxy_host, proxy_port = match.groups()
+        else:
+            match = re.match('([\d\.]+):(\d+)', http_proxy)
+            proxy_host, proxy_port = match.groups()
+            proxy_user = proxy_pass = ''
+        return proxy_user, proxy_pass, proxy_host, proxy_port
+
+    def set_proxy(self, http_proxy):
+        proxy_user, proxy_pass, proxy_host, proxy_port = self.parse_proxy(http_proxy)
         manifest_json = """
             {
                 "version": "1.0.0",
