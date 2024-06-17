@@ -20,7 +20,8 @@ class Tree:
                     # For error: Unicode strings with encoding declaration are not supported. Please use bytes input or XML fragments without declaration
                     self.doc = lxml.html.fromstring(doc.encode('utf-8'))
             except lxml.etree.LxmlError as e:
-                print('Error parsing doc:', e)
+                if doc.strip():
+                    print('Error parsing doc:', e)
                 self.doc = None
 
     def search(self, path):
@@ -46,6 +47,9 @@ class Tree:
             except AttributeError as e:
                 print('Error parsing node:', e)
                 return ''
+
+    def __bool__(self):
+        return self.doc is not None
 
 
 def get(html, xpath, remove=None):
