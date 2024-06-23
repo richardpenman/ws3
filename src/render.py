@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By 
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 
+
 class CacheBrowser:
     def __init__(self, executable_path='~/bin/chromedriver', headless=True, cache=None, cookie_jar=None, cookie_key=None, proxy=None, init_callback=None):
         self.chrome_service = Service(executable_path=os.path.expanduser(executable_path))
@@ -35,6 +36,7 @@ class CacheBrowser:
         else:
             self.cookies = self.format_cookies(cookie_jar)
         signal.signal(signal.SIGINT, self.exit_gracefully)
+        self._throttle = download.Throttle()
 
     def init(self):
         if self.browser is None:
@@ -95,6 +97,7 @@ class CacheBrowser:
         return proxy_user, proxy_pass, proxy_host, proxy_port
 
     def set_proxy(self, http_proxy):
+        self._proxy = http_proxy
         proxy_user, proxy_pass, proxy_host, proxy_port = self.parse_proxy(http_proxy)
         manifest_json = """
             {
@@ -171,7 +174,7 @@ class CacheBrowser:
             self.init()
             print('Downloading:', url)
             self.browser.get(url)
-            time.sleep(delay)
+            self._throttle(delay, self._proxy)
             if wait_xpath:
                 self.wait(wait_xpath)
             self.load_cookies(url)

@@ -59,16 +59,29 @@ class Response:
         return '{}: {}'.format(self.status_code, self.text[:100] if self.text else '')
 
 
+class Throttle:
+    def __init__(self, delay=0):
+        self.delay = delay
+        self.last_time = {}
+
+    def __call__(self, delay, ip):
+        delay = self.delay if delay is None else delay
+        seconds = delay * (0.5 + random.random())
+        last_time = self.last_time.get(ip, datetime.now() - timedelta(seconds=seconds))
+        next_time = last_time + timedelta(seconds=seconds)
+        while next_time > datetime.now():
+            time.sleep(0.1)
+        self.last_time[ip] = next_time
+
+
 class Download:
     def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, proxies=None, cache_expires=None, timeout=30):
         self.cache = pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
         self.session = session
-        self.delay = delay
         self.timeout = timeout
         self.max_retries = max_retries
-        self.last_time = {}
         self.proxies = open(proxy_file).read().splitlines() if proxy_file and os.path.exists(proxy_file) else proxies
-
+        self._throttle = Throttle(delay)
 
     def _format_headers(self, url, headers, user_agent):
         headers = headers or {}
@@ -85,16 +98,6 @@ class Download:
         else:
             return num_failures < self.max_retries
 
-
-    def _throttle(self, delay, ip):
-        delay = self.delay if delay is None else delay
-        seconds = delay * (0.5 + random.random())
-        last_time = self.last_time.get(ip, datetime.now() - timedelta(seconds=seconds))
-        next_time = last_time + timedelta(seconds=seconds)
-        while next_time > datetime.now():
-            time.sleep(0.1)
-        self.last_time[ip] = next_time
-            
 
     def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl=True):
         if isinstance(data, dict):
@@ -118,6 +121,7 @@ class Download:
             max_retries = self.max_retries if max_retries is None else max_retries
             for num_failures in range(max_retries + 1):
                 proxies = self.get_proxy()
+                self._throttle(delay, proxies['http'] if proxies else None)
                 try:
                     if data:
                         request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies, timeout=self.timeout)
@@ -132,8 +136,6 @@ class Download:
                     response = Response(content, request_response.status_code, request_response.reason)
                     if not self._should_retry(response, num_failures):
                         break
-                finally:
-                    self._throttle(delay, proxies['http'] if proxies else None)
             if write_cache:
                 self.cache[key] = response
         return response
