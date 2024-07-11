@@ -58,6 +58,9 @@ class Response:
     def __str__(self):
         return '{}: {}'.format(self.status_code, self.text[:100] if self.text else '')
 
+    def __bool__(self):
+        return self.status_code in SUCCESS_STATUS
+
 
 class Throttle:
     def __init__(self, delay=0):
