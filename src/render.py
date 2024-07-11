@@ -163,9 +163,9 @@ class CacheBrowser:
         return self.browser.find_element(By.XPATH, xpath)
 
 
-    def get(self, url, force=False, retry=True, delay=5, wait_xpath=None):
+    def get(self, url, read_cache=True, retry=True, delay=5, wait_xpath=None):
         try:
-            if force:
+            if not read_cache:
                 raise KeyError()
             html = self.cache[url]
             if not html and retry:
@@ -180,7 +180,7 @@ class CacheBrowser:
             self.load_cookies(url)
             html = self.browser.page_source
             # chrome will wrap JSON in pre - how to solve this properly?
-            if html.endswith('</pre></body></html>'):
+            if '<body><pre>{' in html:
                 html = xpath.get(html, '/html/body/pre')
             self.cache[url] = html
             self.save_cookies()
