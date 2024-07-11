@@ -19,8 +19,7 @@ class CacheBrowser:
         if headless:
             self.chrome_options.add_argument('--headless')
 
-        if proxy:
-            self.set_proxy(proxy)
+        self.set_proxy(proxy)
         self.init_callback = init_callback
 
         self.browser = None
@@ -98,6 +97,8 @@ class CacheBrowser:
 
     def set_proxy(self, http_proxy):
         self._proxy = http_proxy
+        if not http_proxy:
+            return
         proxy_user, proxy_pass, proxy_host, proxy_port = self.parse_proxy(http_proxy)
         manifest_json = """
             {
