@@ -78,8 +78,8 @@ class Throttle:
 
 
 class Download:
-    def __init__(self, cache_file='', session=None, delay=1, max_retries=1, proxy_file=None, proxies=None, cache_expires=None, timeout=30):
-        self.cache = pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
+    def __init__(self, cache_file='', cache=None, session=None, delay=1, max_retries=1, proxy_file=None, proxies=None, cache_expires=None, timeout=30):
+        self.cache = cache or pdict.PersistentDict(cache_file or settings.cache_file, expires=cache_expires)
         self.session = session
         self.timeout = timeout
         self.max_retries = max_retries
@@ -102,7 +102,7 @@ class Download:
             return num_failures < self.max_retries
 
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl=True):
+    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl=True, auto_encoding=True):
         if isinstance(data, dict):
             data = urllib.parse.urlencode(sorted(data.items()))
         key = Request(url, data=data).get_key()
@@ -126,7 +126,7 @@ class Download:
                 proxies = self.get_proxy()
                 self._throttle(delay, proxies['http'] if proxies else None)
                 try:
-                    if data:
+                    if data is not None:
                         request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies, timeout=self.timeout)
                     else:
                         request_response = session.get(url, headers=headers, verify=ssl, proxies=proxies, timeout=self.timeout)
@@ -135,7 +135,7 @@ class Download:
                     response = Response('', 500, str(e))
                 else:
                     print('Download:', url, request_response.status_code)
-                    content = request_response.content if not request_response.encoding else request_response.text
+                    content = request_response.content if not request_response.encoding or not auto_encoding else request_response.text
                     response = Response(content, request_response.status_code, request_response.reason)
                     if not self._should_retry(response, num_failures):
                         break
@@ -164,7 +164,10 @@ class Download:
             if request.callback:
                 for next_request in request.callback(request, response) or []:
                     print('next', next_request)
-                    requests.append(next_request)
+                    if isinstance(next_request, Request):
+                        requests.append(next_request)
+                    else:
+                        yield next_request
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             while requests:
@@ -198,6 +201,6 @@ class Download:
                     else:
                         self.cache[request.get_key()] = response
                         process_callback(request, response)
-                    del future_to_request[future]
+                    future_to_request.remove(future)
 
 

@@ -129,6 +129,9 @@ class PersistentDict:
             yield row[0]
 
     
+    def __bool__(self):
+        return True
+
     def __nonzero__(self):
         return True
 
