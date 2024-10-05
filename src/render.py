@@ -35,7 +35,6 @@ class CacheBrowser:
         else:
             self.cookies = self.format_cookies(cookie_jar)
         signal.signal(signal.SIGINT, self.exit_gracefully)
-        self._throttle = download.Throttle()
 
     def init(self):
         if self.browser is None:
@@ -168,14 +167,14 @@ class CacheBrowser:
         try:
             if not read_cache:
                 raise KeyError()
-            html = self.cache[url]
-            if not html and retry:
+            response = self.cache[url]
+            if not response and retry:
                 raise KeyError()
         except KeyError:
             self.init()
             print('Downloading:', url)
             self.browser.get(url)
-            self._throttle(delay, self._proxy)
+            time.sleep(delay)
             if wait_xpath:
                 self.wait(wait_xpath)
             self.load_cookies(url)
@@ -183,6 +182,7 @@ class CacheBrowser:
             # chrome will wrap JSON in pre - how to solve this properly?
             if '<body><pre>{' in html:
                 html = xpath.get(html, '/html/body/pre')
-            self.cache[url] = html
+            response = download.Response(html, 200, '')
+            self.cache[url] = response
             self.save_cookies()
-        return download.Response(html, 200, '')
+        return response
