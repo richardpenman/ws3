@@ -102,7 +102,7 @@ class Download:
             return num_failures < self.max_retries
 
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl=True, auto_encoding=True):
+    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl_verify=True, auto_encoding=True):
         if isinstance(data, dict):
             data = urllib.parse.urlencode(sorted(data.items()))
         key = Request(url, data=data).get_key()
@@ -127,9 +127,9 @@ class Download:
                 self._throttle(delay, proxies['http'] if proxies else None)
                 try:
                     if data is not None:
-                        request_response = session.post(url, headers=headers, data=data, verify=ssl, proxies=proxies, timeout=self.timeout)
+                        request_response = session.post(url, headers=headers, data=data, verify=ssl_verify, proxies=proxies, timeout=self.timeout)
                     else:
-                        request_response = session.get(url, headers=headers, verify=ssl, proxies=proxies, timeout=self.timeout)
+                        request_response = session.get(url, headers=headers, verify=ssl_verify, proxies=proxies, timeout=self.timeout)
                 except Exception as e:
                     print('Download error:', e)
                     response = Response('', 500, str(e))
