@@ -163,7 +163,6 @@ class Download:
         def process_callback(request, response):
             if request.callback:
                 for next_request in request.callback(request, response) or []:
-                    print('next', next_request)
                     if isinstance(next_request, Request):
                         requests.append(next_request)
                     else:
@@ -189,7 +188,8 @@ class Download:
                         future = executor.submit(self.get, url=request.url, headers=request.headers, data=request.data, read_cache=False, write_cache=False)
                         future_to_request[future] = request
                     else:
-                        process_callback(request, response)
+                        for result in process_callback(request, response):
+                            yield result
 
                 # process the completed callbacks
                 for future in concurrent.futures.as_completed(future_to_request):
@@ -200,7 +200,6 @@ class Download:
                         print('{} generated an exception: {}'.format(request.url, e))
                     else:
                         self.cache[request.get_key()] = response
-                        process_callback(request, response)
-                    future_to_request.remove(future)
-
-
+                        for result in process_callback(request, response):
+                            yield result
+                    del future_to_request[future]
