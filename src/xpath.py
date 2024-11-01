@@ -1,6 +1,5 @@
 import itertools, re, sys, urllib, urllib.parse
 from optparse import OptionParser
-from . import common
 import lxml.html
 import lxml.etree
 
@@ -88,47 +87,3 @@ class Form:
 
     def submit(self, D, action, **argv):
         return D.get(url=action, data=self.data, **argv)
-
-
-
-js_re = re.compile('location.href ?= ?[\'"](.*?)[\'"]')
-def get_links(html, url=None, local=True, external=True):
-    """Return all links from html and convert relative to absolute if source url is provided
-
-    html:
-        HTML to parse
-    url:
-        optional URL for determining path of relative links
-    local:
-        whether to include links from same domain
-    external:
-        whether to include linkes from other domains
-    """
-    def normalize_link(link):
-        if urllib.parse.urlsplit(link).scheme in ('http', 'https', ''):
-            if '#' in link:
-                link = link[:link.index('#')]
-            if url:
-                link = urllib.parse.urljoin(url, link)
-                if not local and common.same_domain(url, link):
-                    # local links not included
-                    link = None
-                if not external and not common.same_domain(url, link):
-                    # external links not included
-                    link = None
-        else:
-            link = None # ignore mailto, etc
-        return link
-    a_links = search(html, '//a/@href')
-    i_links = search(html, '//iframe/@src')
-    js_links = js_re.findall(html)
-    links = []
-    for link in a_links + i_links + js_links:
-        try:
-            link = normalize_link(link)
-        except UnicodeError:
-            pass
-        else:
-            if link and link not in links:
-                links.append(link)
-    return links
