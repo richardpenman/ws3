@@ -1,7 +1,50 @@
 __doc__ = 'High level functions for interpreting useful data from input'
 
-import csv, logging, math, os, random, re
-from . import common
+import csv, logging, math, os, random, re, urllib
+from . import common, xpath
+
+
+def get_links(html, url=None, local=True, external=True):
+    """Return all links from html and convert relative to absolute if source url is provided
+
+    html:
+        HTML to parse
+    url:
+        optional URL for determining path of relative links
+    local:
+        whether to include links from same domain
+    external:
+        whether to include linkes from other domains
+    """
+    def normalize_link(link):
+        if urllib.parse.urlsplit(link).scheme in ('http', 'https', ''):
+            if '#' in link:
+                link = link[:link.index('#')]
+            if url:
+                link = urllib.parse.urljoin(url, link)
+                if not local and common.same_domain(url, link):
+                    # local links not included
+                    link = None
+                if not external and not common.same_domain(url, link):
+                    # external links not included
+                    link = None
+        else:
+            link = None # ignore mailto, etc
+        return link
+    tree = xpath.Tree(html)
+    a_links = tree.search('//a/@href')
+    i_links = tree.search('//iframe/@src')
+    js_links = re.findall('location.href ?= ?[\'"](.*?)[\'"]', html)
+    links = []
+    for link in a_links + i_links + js_links:
+        try:
+            link = normalize_link(str(link))
+        except UnicodeError:
+            pass
+        else:
+            if link and link not in links:
+                links.append(link)
+    return links
 
 
 def extract_emails(html, ignored=None):
