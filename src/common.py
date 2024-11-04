@@ -22,7 +22,7 @@ import sqlite3
 import json
 from html import unescape
 import requests
-from . import adt, settings
+from . import adt, settings, xpath
 
 
 class WebScrapingError(Exception):
@@ -199,6 +199,8 @@ def remove_tags(html, keep_children=True):
     >>> remove_tags('<span><b></b></span>test</span>', False)
     'test'
     """
+    if isinstance(html, xpath.Tree):
+        html = str(html)
     html = re.sub('<(%s)[^>]*>' % '|'.join(EMPTY_TAGS), '', html)
     if not keep_children:
         for tag in unique(re.findall('<(\w+?)\W', html)):
@@ -207,59 +209,14 @@ def remove_tags(html, keep_children=True):
     return re.compile('<[^<]*?>').sub('', html)
     
 
-"""
-def unescape(text):
-    ""Interpret escape characters
-
-    >>> unescape('&lt;hello&nbsp;&amp;%20world&gt;')
-    '<hello & world>'
-    ""
-    if not text:
-        return ''
-
-    text = html.unescape(text)
-    text = urllib.parse.unquote(text)
-
-    # remove annoying characters
-    chars = {
-        '\xc2\x82' : ',',        # High code comma
-        '\xc2\x84' : ',,',       # High code double comma
-        '\xc2\x85' : '...',      # Tripple dot
-        '\xc2\x88' : '^',        # High carat
-        '\xc2\x91' : '\x27',     # Forward single quote
-        '\xc2\x92' : '\x27',     # Reverse single quote
-        '\xc2\x93' : '\x22',     # Forward double quote
-        '\xc2\x94' : '\x22',     # Reverse double quote
-        '\xc2\x95' : ' ',  
-        '\xc2\x96' : '-',        # High hyphen
-        '\xc2\x97' : '--',       # Double hyphen
-        '\xc2\x99' : ' ',
-        '\xc2\xa0' : ' ',
-        '\xc2\xa6' : '|',        # Split vertical bar
-        '\xc2\xab' : '<<',       # Double less than
-        '\xc2\xae' : '®',
-        '\xc2\xbb' : '>>',       # Double greater than
-        '\xc2\xbc' : '1/4',      # one quarter
-        '\xc2\xbd' : '1/2',      # one half
-        '\xc2\xbe' : '3/4',      # three quarters
-        '\xca\xbf' : '\x27',     # c-single quote
-        '\xcc\xa8' : '',         # modifier - under curve
-        '\xcc\xb1' : ''          # modifier - under line
-    }
-    def replace_chars(match):
-        char = match.group(0)
-        return chars[char]
-
-    return re.sub('(' + '|'.join(chars.keys()) + ')', replace_chars, text)
-"""
-
-   
 def normalize(s, encoding=settings.default_encoding, newlines=False):
     """Normalize the string by removing tags, unescaping, and removing surrounding whitespace
     
     >>> normalize('<span>Tel.:   029&nbsp;-&nbsp;12345678   </span>')
     'Tel.: 029 - 12345678'
     """
+    if isinstance(s, xpath.Tree):
+        s = str(s)
     if isinstance(s, str):
         # remove tags and set encoding
         s = unescape(remove_tags(s))#, encoding=encoding, keep_unicode=isinstance(s, unicode))
@@ -435,6 +392,8 @@ class UnicodeWriter:
     def _cell(self, s):
         """Normalize the content for this cell
         """
+        if isinstance(s, xpath.Tree):
+            s = str(s)
         if isinstance(s, str):
             s = s.encode(self.encoding, 'ignore')
         elif s is None:

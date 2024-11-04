@@ -188,8 +188,7 @@ class Download:
                         future = executor.submit(self.get, url=request.url, headers=request.headers, data=request.data, read_cache=False, write_cache=False)
                         future_to_request[future] = request
                     else:
-                        for result in process_callback(request, response):
-                            yield result
+                        yield from process_callback(request, response)
 
                 # process the completed callbacks
                 for future in concurrent.futures.as_completed(future_to_request):
@@ -200,6 +199,5 @@ class Download:
                         print('{} generated an exception: {}'.format(request.url, e))
                     else:
                         self.cache[request.get_key()] = response
-                        for result in process_callback(request, response):
-                            yield result
+                        yield from process_callback(request, response)
                     del future_to_request[future]
