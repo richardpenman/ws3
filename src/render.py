@@ -163,7 +163,7 @@ class CacheBrowser:
         return self.browser.find_element(By.XPATH, xpath)
 
 
-    def get(self, url, read_cache=True, retry=True, delay=5, wait_xpath=None):
+    def get(self, url, read_cache=True, write_cache=True, retry=True, delay=5, wait_xpath=None):
         try:
             if not read_cache:
                 raise KeyError()
@@ -183,6 +183,7 @@ class CacheBrowser:
             if '<body><pre>{' in html:
                 html = xpath.get(html, '/html/body/pre')
             response = download.Response(html, 200, '')
-            self.cache[url] = response
+            if write_cache:
+                self.cache[url] = response
             self.save_cookies()
         return response
