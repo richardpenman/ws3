@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Callable
 import requests
-from . import pdict, services, settings, xpath
+from . import adt, pdict, services, settings, xpath
 
 
 SUCCESS_STATUS = (200, )
@@ -159,15 +159,28 @@ class Download:
         return gm.geocode(address)
 
 
-    def threaded(self, requests, max_workers=4, max_queue=1000):
+    def threaded(self, requests, max_workers=4, max_queue=1000, filter_duplicates=True):
         def process_callback(request, response):
             if request.callback:
                 for next_request in request.callback(request, response) or []:
                     if isinstance(next_request, Request):
+                        if filter_duplicates:
+                            if next_request.get_key() in seen:
+                                continue
+                            else:
+                                seen.add(next_request.get_key())
                         requests.append(next_request)
                     else:
                         yield next_request
 
+        seen = adt.HashDict()
+        if filter_duplicates:
+            filtered_requests = []
+            for request in requests:
+                if request.get_key() not in seen:
+                    seen.add(request.get_key())
+                    filtered_requests.append(request)
+            requests = filtered_requests
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             while requests:
                 # avoid loading too many requests into memory at once
