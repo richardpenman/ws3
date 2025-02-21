@@ -36,6 +36,9 @@ class Tree:
         else:
             return Tree(None)
 
+    def regex(self, r, flags=0):
+        return re.compile(r, flags=flags).search(str(self))
+
     def __str__(self):
         if self.doc is None:
             return ''

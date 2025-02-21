@@ -28,7 +28,7 @@ class GoogleMaps:
             address = common.to_ascii(address)
         address = re.sub(u'%C2%9\d*', '', urllib.parse.quote_plus(address))
         geocode_url = 'https://maps.google.com/maps/api/geocode/json?address=%s&key=%s&sensor=false%s' % (address, self.api_key, '&language=' + language if language else '')
-        geocode_response = self.D.get(geocode_url, delay=delay, max_retries=max_retries)
+        geocode_response = self.D.get(geocode_url, delay=delay, max_retries=max_retries, use_proxy=False)
         geocode_data = self.load_result(geocode_url, geocode_response.text)
         for result in geocode_data.get('results', []):
             return self.parse_location(result)
@@ -55,7 +55,7 @@ class GoogleMaps:
                 elif status == 'OVER_QUERY_LIMIT':
                     # error geocoding - try again later
                     common.logger.info('Over query limit')
-                    self.D.cache[url] = ''
+                    del self.D.cache[url]
                 elif status in ('REQUEST_DENIED', 'INVALID_REQUEST'):
                     common.logger.info('{0}: {1}'.format(status, url))
         return {}

@@ -252,8 +252,8 @@ def regex_get(html, pattern, index=None, normalized=True, flag=re.DOTALL|re.IGNO
 
 def parse_jsonp(s):
     try:
-        rindex = s.index('(')
-        lindex = s.rindex(')')
+        rindex = s.index(b'(')
+        lindex = s.rindex(b')')
     except IndexError:
         pass
     else:
