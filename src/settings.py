@@ -20,7 +20,6 @@ log_file    = os.path.join(state_dir, 'webscraping.log') # default logging file
 log_level = logging.INFO # logging level
 default_encoding = 'utf-8'
 default_headers =  {
-    'Referer': 'https://www.google.com/',
     'Accept-Language': 'en-us,en;q=0.5',
     'Accept': '*/*',
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',

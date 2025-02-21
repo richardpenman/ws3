@@ -1,15 +1,15 @@
 
-import json, random, re, time, os, urllib.parse
+import collections, json, random, re, time, os, urllib.parse
 import concurrent
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Callable
 import requests
-from . import adt, pdict, services, settings, xpath
+from . import adt, common, pdict, services, settings, xpath
 
 
-SUCCESS_STATUS = (200, )
+SUCCESS_STATUS = (200, 201)
 NON_RETRIABLE_STATUS = (404, )
 
 
@@ -35,6 +35,7 @@ class Response:
         self.status_code = status_code
         self.reason = reason
         self.tree = None
+        self.redirect_url = None
 
     def get(self, path):
         if self.tree is None:
@@ -46,14 +47,17 @@ class Response:
             self.tree = xpath.Tree(self.text)
         return self.tree.search(path)
 
-    def regex(self, r):
-        return re.search(r, self.text)
+    def regex(self, r, flags=0):
+        return re.compile(r, flags=flags).search(self.text)
 
     def findall(self, r):
         return re.findall(r, self.text)
 
     def json(self):
         return json.loads(self.text)
+
+    def jsonp(self):
+        return common.parse_jsonp(self.text)
 
     def __str__(self):
         return '{}: {}'.format(self.status_code, self.text[:100] if self.text else '')
@@ -84,35 +88,37 @@ class Download:
         self.timeout = timeout
         self.max_retries = max_retries
         self.proxies = open(proxy_file).read().splitlines() if proxy_file and os.path.exists(proxy_file) else proxies
+        # track the number of consecutive download errors for each proxy
+        self.proxy_errors = collections.Counter()
         self._throttle = Throttle(delay)
 
     def _format_headers(self, url, headers, user_agent):
         headers = headers or {}
-        if user_agent:
-            headers['User-Agent'] = user_agent
-        for name, value in settings.default_headers.items():
-            headers[name] = value
+        for name, value in list(settings.default_headers.items()) + [('User-Agent', user_agent), ('Referer', url)]:
+            if name not in headers and name.lower() not in headers:
+                headers[name] = value
         return headers
 
 
-    def _should_retry(self, response, num_failures=0):
+    def _should_retry(self, response, num_failures, max_retries):
         if response.status_code in SUCCESS_STATUS or response.status_code in NON_RETRIABLE_STATUS:
             return False
         else:
-            return num_failures < self.max_retries
+            return num_failures < max_retries
 
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl_verify=True, auto_encoding=True):
+    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl_verify=True, auto_encoding=True, use_proxy=True):
         if isinstance(data, dict):
             data = urllib.parse.urlencode(sorted(data.items()))
         key = Request(url, data=data).get_key()
+        max_retries = self.max_retries if max_retries is None else max_retries
         try:
             if not read_cache:
                 raise KeyError()
             response = self.cache[key]
             if not isinstance(response, Response):
                 response = Response(response, 200, '')
-            if self._should_retry(response):
+            if self._should_retry(response, 0, max_retries):
                 raise KeyError()
 
         except KeyError:
@@ -121,24 +127,28 @@ class Download:
             else:
                 session = self.session
             headers = self._format_headers(url, headers, user_agent)
-            max_retries = self.max_retries if max_retries is None else max_retries
             for num_failures in range(max_retries + 1):
-                proxies = self.get_proxy()
-                self._throttle(delay, proxies['http'] if proxies else None)
+                proxy = self.get_proxy() if use_proxy else None
+                self._throttle(delay, proxy)
                 try:
+                    request_proxies = {'http': proxy, 'https': proxy} if proxy else None
                     if data is not None:
-                        request_response = session.post(url, headers=headers, data=data, verify=ssl_verify, proxies=proxies, timeout=self.timeout)
+                        request_response = session.post(url, headers=headers, data=data, verify=ssl_verify, proxies=request_proxies, timeout=self.timeout)
                     else:
-                        request_response = session.get(url, headers=headers, verify=ssl_verify, proxies=proxies, timeout=self.timeout)
+                        request_response = session.get(url, headers=headers, verify=ssl_verify, proxies=request_proxies, timeout=self.timeout)
                 except Exception as e:
                     print('Download error:', e)
                     response = Response('', 500, str(e))
+                    self.proxy_errors[proxy] += 1
                 else:
                     print('Download:', url, request_response.status_code)
                     content = request_response.content if not request_response.encoding or not auto_encoding else request_response.text
                     response = Response(content, request_response.status_code, request_response.reason)
-                    if not self._should_retry(response, num_failures):
+                    if request_response.url != url:
+                        response.redirect_url = request_response.url
+                    if not self._should_retry(response, num_failures, max_retries):
                         break
+                    self.proxy_errors[proxy] = 0
             if write_cache:
                 self.cache[key] = response
         return response
@@ -148,15 +158,12 @@ class Download:
         if self.proxies:
             proxy = self.proxies.pop()
             self.proxies = [proxy] + self.proxies
-            return {
-                'http': proxy,
-                'https': proxy,
-            }
+            return proxy
 
 
     def geocode(self, address, api_key):
         gm = services.GoogleMaps(self, api_key)
-        return gm.geocode(address)
+        return gm.geocode(address, delay=self._throttle.delay)
 
 
     def threaded(self, requests, max_workers=4, max_queue=1000, filter_duplicates=True):

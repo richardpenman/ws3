@@ -1,6 +1,7 @@
 __doc__ = 'High level functions for interpreting useful data from input'
 
-import csv, logging, math, os, random, re, urllib
+import csv, io, logging, math, os, random, re, sys, urllib, zipfile
+import requests
 from . import common, xpath
 
 
@@ -193,24 +194,6 @@ def move_coordinate(lat, lng, ch_lat, ch_lng, ch_scale=None):
     return new_lat, new_lng
 
 
-def get_zip_codes(filename, min_distance=100, scale='miles', lat_key='Latitude', lng_key='Longitude', zip_key='Zip'):
-    """Reads CSV file of zip,lat,lng and returns zip codes that aren't within the minimum distance of each other
-    """
-    for zip_code, lat, lng in get_zip_lat_lngs(filename, min_distance, scale, lat_key, lng_key, zip_key):
-        yield zip_code
-
-def get_zip_lat_lngs(filename, min_distance=100, scale='miles', lat_key='Latitude', lng_key='Longitude', zip_key='Zip'):
-    locations = []
-    for record in csv.DictReader(open(filename)):
-        lat, lng = float(record[lat_key]), float(record[lng_key])
-        for other_lat, other_lng in locations:
-            if distance((lat, lng), (other_lat, other_lng), scale=scale) < min_distance:
-                break
-        else:
-            locations.append((lat, lng))
-            yield record[zip_key], record[lat_key], record[lng_key]
-
-
 def find_json_path(e, value, path=''):
     """Find the JSON path that points to this value
     """
@@ -226,3 +209,105 @@ def find_json_path(e, value, path=''):
             index_path = '{}[{}]'.format(path, i)
             results.extend(find_json_path(v, value, index_path))
     return results
+
+
+def download_zipcodes(country_code):
+    """Download zipcodes for this country code
+    """
+    filename = country_code.upper() + '.zip'
+    if os.path.exists(filename):
+        zip_data = open(filename, 'rb').read()
+    else:
+        zip_data = requests.get('http://download.geonames.org/export/zip/%s' % filename).content
+    found = False
+    if zip_data:
+        input_zip = io.BytesIO()
+        input_zip.write(zip_data)
+        zf = zipfile.ZipFile(input_zip)
+        for filename in zf.namelist():
+            if country_code.upper() in filename:
+                tsv_data = zf.read(filename).decode('utf-8')
+                for row in csv.reader(tsv_data.splitlines(), delimiter='\t'):
+                    zip_code, city = row[1:3]
+                    lat, lng = row[9:11]
+                    found = True
+                    yield zip_code, lng, lat, city
+                break
+
+    if not found:
+        search_html = requests.get('http://www.geonames.org/postalcode-search.html?q=&country=' + country_code.upper()).text
+        trs = xpath.search(search_html, '//table[@class="restable"]/tr')
+        while trs:
+            tds = trs.pop(0).search('./td')
+            if any(tds):
+                city = str(tds[1])
+                zip_code = str(tds[2])
+                tds = trs.pop(0).search('./td')
+                lat, lng = str(tds[1].get('./a/small')).split('/')
+                yield zip_code, lng, lat, city
+
+
+def generate_zipcode_file(country_code, should_split=False):
+    """Generate zip code file for the given country code ordered by the minimum distance apart with proceeding zip codes
+    """
+    outstanding_zips = {}
+    for zip_code, lng, lat, city in download_zipcodes(country_code):
+        if should_split:
+            zip_code = zip_code.split('-')[0]
+        if lat and lng and 'CEDEX' not in zip_code:
+            outstanding_zips[zip_code] = float(lng), float(lat), city
+    # keep track of the current max distance from a zip code
+    # any further added points can only be closer
+    max_known_distances = {}
+    max_distance = 10000
+
+    output_rows = []
+    for min_distance in reversed(range(1, max_distance + 1)):
+        print(min_distance)
+        zip_codes = list(outstanding_zips.keys())
+        random.shuffle(zip_codes)
+        for zip_code in zip_codes:
+            max_known_distance = max_known_distances.get(zip_code, max_distance)
+            if max_known_distance < min_distance:
+                # can skip processing this coordinate until target distance reaches the known maximum distance
+                continue
+            lng, lat, city = outstanding_zips[zip_code]
+            for _, other_lng, other_lat, _, _ in output_rows:
+                this_distance = distance((lat, lng), (other_lat, other_lng), scale='km')
+                if this_distance < min_distance:
+                    # this distance is less than the current target
+                    max_known_distances[zip_code] = this_distance
+                    break
+            else:
+                # found a new coordinates that is atleast the target distance away from every other coordinate
+                output_rows.append((zip_code, lng, lat, city, min_distance))
+                del outstanding_zips[zip_code]
+    # add any leftover points with 0 distance
+    for zip_code, (lng, lat, city) in outstanding_zips.items():
+        output_rows.append((zip_code, lng, lat, city, 0))
+
+    output_filename = '%s_locations.csv' % country_code
+    writer = csv.writer(open(output_filename, 'w'))
+    writer.writerow(['Zip code', 'Longitude', 'Latitude', 'City', 'Distance'])
+    writer.writerows(output_rows)
+    print('Output to', output_filename)
+
+
+def get_zip_codes(filename, distance=None):
+    """Get unique zip codes this minimum distance apart, including when at same lat/lng
+    """
+    for row in get_zip_lng_lats(filename, distance):
+        yield row[0]
+
+
+def get_zip_lng_lats(filename, distance=None):
+    """Get zip, lng, lat that are a minimum distance apart
+    """
+    reader = csv.reader(open(filename))
+    header = next(reader)
+    for zip_code, lng, lat, _, zip_distance in reader:
+        lng, lat, zip_distance = float(lng), float(lat), int(zip_distance)
+        if distance is None or distance <= zip_distance:
+            yield zip_code, lng, lat
+        else:
+            break
