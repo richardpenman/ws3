@@ -28,7 +28,7 @@ class GoogleMaps:
             address = common.to_ascii(address)
         address = re.sub(u'%C2%9\d*', '', urllib.parse.quote_plus(address))
         geocode_url = 'https://maps.google.com/maps/api/geocode/json?address=%s&key=%s&sensor=false%s' % (address, self.api_key, '&language=' + language if language else '')
-        geocode_response = self.D.get(geocode_url, delay=delay, max_retries=max_retries, use_proxy=False)
+        geocode_response = self.D.get(geocode_url, delay=delay, max_retries=max_retries, use_proxy=False, auto_encoding=False)
         geocode_data = self.load_result(geocode_url, geocode_response.text)
         for result in geocode_data.get('results', []):
             return self.parse_location(result)
@@ -97,4 +97,5 @@ class GoogleMaps:
         results['lat'] = result['geometry']['location']['lat']
         results['lng'] = result['geometry']['location']['lng']
         results['types'] = result['types']
+        results['place_id'] = result['place_id']
         return results

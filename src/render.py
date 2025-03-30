@@ -88,6 +88,7 @@ class CacheBrowser:
         match = re.search('//(.*?):(.*?)@(.*?):(\d+)', http_proxy)
         if match:
             proxy_user, proxy_pass, proxy_host, proxy_port = match.groups()
+            print(match.groups())
         else:
             match = re.match('([\d\.]+):(\d+)', http_proxy)
             proxy_host, proxy_port = match.groups()
@@ -172,7 +173,7 @@ class CacheBrowser:
                 raise KeyError()
         except KeyError:
             self.init()
-            print('Downloading:', url)
+            print('Rendering:', url)
             self.browser.get(url)
             time.sleep(delay)
             if wait_xpath:
