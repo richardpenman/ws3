@@ -1,4 +1,4 @@
-import itertools, re, sys, urllib, urllib.parse
+import itertools, json, re, sys, urllib, urllib.parse
 from optparse import OptionParser
 import lxml.html
 import lxml.etree
@@ -39,6 +39,9 @@ class Tree:
     def regex(self, r, flags=0):
         return re.compile(r, flags=flags).search(str(self))
 
+    def json(self):
+        return json.loads(str(self))
+
     def __str__(self):
         if self.doc is None:
             return ''
@@ -68,14 +71,15 @@ def search(html, xpath, remove=None):
 class Form:
     """Helper class for filling and submitting forms
     """
-    def __init__(self, form):
+    def __init__(self, form_response):
         self.data = {}
-        for input_name, input_value in zip(search(form, '//input/@name'), search(form, '//input/@value')):
-            self.data[input_name] = input_value
-        for text_name, text_value in zip(search(form, '//textarea/@name'), search(form, '//textarea')):
-            self.data[text_name] = text_value
-        for select_name, select_contents in zip(search(form, '//select/@name'), search(form, '//select')):
-            self.data[select_name] = get(select_contents, '/option[@selected]/@value')
+        for form_input in form_response.search('//input'):
+            self.data[str(form_input.get('@name'))] = str(form_input.get('@value'))
+        for textarea in form_response.search('//textarea'):
+            self.data[str(textarea.get('@name'))] = str(textarea)
+        for option in form_response.search('//select/option[@selected]'):
+            select = str(option.get('../@name'))
+            self.data[select] = str(option.get('@value'))
         if '' in self.data:
             del self.data['']
 
@@ -86,7 +90,7 @@ class Form:
         self.data[key] = value
 
     def __str__(self):
-        return urllib.urlencode(self.data)
+        return urllib.parse.urlencode(self.data)
 
     def submit(self, D, action, **argv):
         return D.get(url=action, data=self.data, **argv)

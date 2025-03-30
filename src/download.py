@@ -99,6 +99,14 @@ class Download:
                 headers[name] = value
         return headers
 
+    def _format_data(self, data, max_length=100):
+        if data:
+            data_str = str(data)
+            if len(data_str) > max_length:
+                data_str = data_str[:max_length] + '...'
+        else:
+            data_str = ''
+        return data_str
 
     def _should_retry(self, response, num_failures, max_retries):
         if response.status_code in SUCCESS_STATUS or response.status_code in NON_RETRIABLE_STATUS:
@@ -107,10 +115,10 @@ class Download:
             return num_failures < max_retries
 
 
-    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl_verify=True, auto_encoding=True, use_proxy=True):
+    def get(self, url, delay=None, max_retries=None, user_agent='', read_cache=True, write_cache=True, headers=None, data=None, ssl_verify=True, auto_encoding=True, use_proxy=True, key=None):
         if isinstance(data, dict):
             data = urllib.parse.urlencode(sorted(data.items()))
-        key = Request(url, data=data).get_key()
+        key = key or Request(url, data=data).get_key()
         max_retries = self.max_retries if max_retries is None else max_retries
         try:
             if not read_cache:
@@ -122,6 +130,7 @@ class Download:
                 raise KeyError()
 
         except KeyError:
+            print('Download: {} {}'.format(url, self._format_data(data)))
             if self.session is None:
                 session = requests.session()
             else:
@@ -141,12 +150,13 @@ class Download:
                     response = Response('', 500, str(e))
                     self.proxy_errors[proxy] += 1
                 else:
-                    print('Download:', url, request_response.status_code)
                     content = request_response.content if not request_response.encoding or not auto_encoding else request_response.text
                     response = Response(content, request_response.status_code, request_response.reason)
                     if request_response.url != url:
                         response.redirect_url = request_response.url
-                    if not self._should_retry(response, num_failures, max_retries):
+                    if self._should_retry(response, num_failures, max_retries):
+                        print('Download error:', response.status_code)
+                    else:
                         break
                     self.proxy_errors[proxy] = 0
             if write_cache:

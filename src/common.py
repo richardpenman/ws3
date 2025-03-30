@@ -209,7 +209,7 @@ def remove_tags(html, keep_children=True):
     return re.compile('<[^<]*?>').sub('', html)
     
 
-def normalize(s, encoding=settings.default_encoding, newlines=False):
+def normalize(s, encoding=settings.default_encoding, keep_newlines=False):
     """Normalize the string by removing tags, unescaping, and removing surrounding whitespace
     
     >>> normalize('<span>Tel.:   029&nbsp;-&nbsp;12345678   </span>')
@@ -220,7 +220,7 @@ def normalize(s, encoding=settings.default_encoding, newlines=False):
     if isinstance(s, str):
         # remove tags and set encoding
         s = unescape(remove_tags(s))#, encoding=encoding, keep_unicode=isinstance(s, unicode))
-        if newlines:
+        if keep_newlines:
             # keep multiple newlines
             s = re.sub('[\n\r]+', '\n', s)
             s = re.sub('[ \t\f\v]+', ' ', s)
