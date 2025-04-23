@@ -1,0 +1,30 @@
+[project]
+name = "ws"
+version = "0.3"
+description = "Efficient asyncio based web crawler"
+readme = "README.md"
+authors = [{ name = "Richard Penman", email = "richard.penman@gmail.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "lxml==5.2.2",
+    "requests==2.32.3",
+    "selenium==4.22.0",
+]
+requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://github.com/richardpenman/ws"
+
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

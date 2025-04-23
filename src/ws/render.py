@@ -11,7 +11,7 @@ from selenium.webdriver.common.proxy import Proxy, ProxyType
 
 
 class CacheBrowser:
-    def __init__(self, executable_path='~/bin/chromedriver', headless=True, cache=None, cookie_jar=None, cookie_key=None, proxy=None, init_callback=None):
+    def __init__(self, executable_path='~/bin/chromedriver', headless=True, cache=None, cookie_jar=None, cookie_key=None, proxy=None, init_callback=None, timeout=None):
         self.chrome_service = Service(executable_path=os.path.expanduser(executable_path))
         self.chrome_options = Options()
         self.chrome_options.add_argument("--disable-dev-shm-usage") # https://stackoverflow.com/a/50725918/1689770
@@ -23,6 +23,7 @@ class CacheBrowser:
         self.init_callback = init_callback
 
         self.browser = None
+        self.timeout = None
         #self.capabilities = webdriver.DesiredCapabilities.CHROME
         self.cache = download.Download().cache if cache is None else cache
         self.cookie_key = cookie_key
@@ -174,6 +175,8 @@ class CacheBrowser:
         except KeyError:
             self.init()
             print('Rendering:', url)
+            if self.timeout:
+                driver.set_page_load_timeout(self.timeout)
             self.browser.get(url)
             time.sleep(delay)
             if wait_xpath:
