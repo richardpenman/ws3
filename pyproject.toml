@@ -1,6 +1,6 @@
 [project]
 name = "ws"
-version = "0.3"
+version = "0.3.2"
 description = "Efficient asyncio based web crawler"
 readme = "README.md"
 authors = [{ name = "Richard Penman", email = "richard.penman@gmail.com" }]
@@ -10,6 +10,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
+    "Brotli==1.1.0",
     "lxml==5.2.2",
     "requests==2.32.3",
     "selenium==4.22.0",

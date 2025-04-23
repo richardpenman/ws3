@@ -3,6 +3,7 @@
 import os, re, signal, sys, time, urllib, zipfile
 from http.cookiejar import Cookie, CookieJar
 from . import download, xpath
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -23,7 +24,7 @@ class CacheBrowser:
         self.init_callback = init_callback
 
         self.browser = None
-        self.timeout = None
+        self.timeout = timeout
         #self.capabilities = webdriver.DesiredCapabilities.CHROME
         self.cache = download.Download().cache if cache is None else cache
         self.cookie_key = cookie_key
@@ -176,18 +177,23 @@ class CacheBrowser:
             self.init()
             print('Rendering:', url)
             if self.timeout:
-                driver.set_page_load_timeout(self.timeout)
-            self.browser.get(url)
-            time.sleep(delay)
-            if wait_xpath:
-                self.wait(wait_xpath)
-            self.load_cookies(url)
-            html = self.browser.page_source
-            # chrome will wrap JSON in pre - how to solve this properly?
-            if '<body><pre>{' in html:
-                html = xpath.get(html, '/html/body/pre')
-            response = download.Response(html, 200, '')
-            if write_cache:
-                self.cache[url] = response
-            self.save_cookies()
+                self.browser.set_page_load_timeout(self.timeout)
+            try:
+                self.browser.get(url)
+            except TimeoutException:
+                print('Request timed out')
+                response = download.Response('', 408, 'Request timed out')
+            else: 
+                time.sleep(delay)
+                if wait_xpath:
+                    self.wait(wait_xpath)
+                self.load_cookies(url)
+                html = self.browser.page_source
+                # chrome will wrap JSON in pre - how to solve this properly?
+                if '<body><pre>{' in html:
+                    html = xpath.get(html, '/html/body/pre')
+                response = download.Response(html, 200, '')
+                if write_cache:
+                    self.cache[url] = response
+                self.save_cookies()
         return response
