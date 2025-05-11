@@ -108,7 +108,7 @@ class Download:
             data_str = ''
         return data_str
 
-    def _should_retry(self, response, num_failures, max_retries):
+    def _should_retry(self, response, num_failures=0, max_retries=1):
         if response.status_code in SUCCESS_STATUS or response.status_code in NON_RETRIABLE_STATUS:
             return False
         else:
@@ -124,7 +124,7 @@ class Download:
             if not read_cache:
                 raise KeyError()
             response = self.cache[key]
-            if not isinstance(response, Response):
+            if isinstance(response, (str, dict)):
                 response = Response(response, 200, '')
             if self._should_retry(response, 0, max_retries):
                 raise KeyError()
